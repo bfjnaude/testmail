@@ -31,7 +31,8 @@ func init() {
 	sesService = ses.New(awsSession)
 }
 
-const path = string("562.jpg")
+// const path = string("562.jpg")
+const path = string("label-50.pdf")
 
 var quoteEscaper = strings.NewReplacer("\\", "\\\\", `"`, "\\\"")
 
@@ -56,53 +57,38 @@ func sendMail() {
 	buf.WriteString("MIME-Version: 1.0\n")
 
 	writer := multipart.NewWriter(buf)
-	buf.WriteString("Content-Type: multipart/mixed; boundary=\"" + writer.Boundary() + "\"\n")
+	buf.WriteString("Content-Type: multipart/alternative; boundary=\"" + writer.Boundary() + "\"\n")
 	buf.WriteString("Content-Transfer-Encoding: 7bit\n")
 	buf.WriteString("\n")
-	buf.WriteString("--" + writer.Boundary() + "\n")
 
-	// _, err = writer.CreatePart(map[string][]string{"Content-Type": []string{"multipart/mixed; boundary=\"" + writer.Boundary() + "\""}})
-	// _, err = writer.CreatePart(map[string][]string{"Content-Type": []string{"multipart/mixed;"}})
-	// _, err = writer.CreatePart(map[string][]string{})
+	htmlpart, err := writer.CreatePart(map[string][]string{
+		"Content-Type":              []string{"text/html; charset=\"UTF-8\""},
+		"Content-Transfer-Encoding": []string{"quoted-printable"},
+	})
 
-	// if err != nil {
-	// 	panic(err)
-	// }
-	part, err := writer.CreateFormField("test")
+	htmlbuf := new(bytes.Buffer)
+	htmlbuf.WriteString("<html><body>Test</body></html>\n\n")
+	htmlpart.Write(htmlbuf.Bytes())
 
-	if err != nil {
-		panic(err)
-	}
+	textpart, err := writer.CreatePart(map[string][]string{
+		"Content-Type": []string{"text/plain; charset=\"UTF-8\""},
+	})
 
-	testString := "random garbage\n"
+	textbuf := new(bytes.Buffer)
+	textbuf.WriteString("Test\n\n")
+	textpart.Write(textbuf.Bytes())
 
-	b := new(bytes.Buffer)
-	b.WriteString(testString)
-
-	part.Write(b.Bytes())
-
-	// if err != nil {
-	// 	panic(err)
-	// }
-
-	// imgpart, err := writer.CreatePart(map[string][]string{
-	// 	"Content-Type": []string{"img/jpeg;"},
-	// 	"file":         []string{filepath.Base(path)},
-	// })
 	h := make(textproto.MIMEHeader)
 	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`, escapeQuotes("file"), escapeQuotes(filepath.Base(path))))
-	h.Set("Content-Type", "img/jpeg")
+	h.Set("Content-Type", "application/octet-stream")
 	h.Set("Content-Transfer-Encoding", "base64")
 	imgpart, err := writer.CreatePart(h)
-	// imgpart, err := writer.CreateFormFile("file", filepath.Base(path))
-
 	if err != nil {
 		panic(err)
 	}
 
 	encoder := base64.NewEncoder(base64.StdEncoding, imgpart)
 	_, err = io.Copy(encoder, file)
-	// _, err = io.Copy(imgpart, file)
 
 	if err != nil {
 		panic(err)
