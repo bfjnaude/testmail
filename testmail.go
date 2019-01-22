@@ -3,11 +3,14 @@ package main
 import (
 	"bytes"
 	"encoding/base64"
+	"fmt"
 	"io"
 	"log"
 	"mime/multipart"
+	"net/textproto"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -29,6 +32,12 @@ func init() {
 }
 
 const path = string("562.jpg")
+
+var quoteEscaper = strings.NewReplacer("\\", "\\\\", `"`, "\\\"")
+
+func escapeQuotes(s string) string {
+	return quoteEscaper.Replace(s)
+}
 
 func sendMail() {
 	file, err := os.Open(path)
@@ -59,7 +68,6 @@ func sendMail() {
 	// if err != nil {
 	// 	panic(err)
 	// }
-
 	part, err := writer.CreateFormField("test")
 
 	if err != nil {
@@ -77,7 +85,16 @@ func sendMail() {
 	// 	panic(err)
 	// }
 
-	imgpart, err := writer.CreateFormFile("file", filepath.Base(path))
+	// imgpart, err := writer.CreatePart(map[string][]string{
+	// 	"Content-Type": []string{"img/jpeg;"},
+	// 	"file":         []string{filepath.Base(path)},
+	// })
+	h := make(textproto.MIMEHeader)
+	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`, escapeQuotes("file"), escapeQuotes(filepath.Base(path))))
+	h.Set("Content-Type", "img/jpeg")
+	h.Set("Content-Transfer-Encoding", "base64")
+	imgpart, err := writer.CreatePart(h)
+	// imgpart, err := writer.CreateFormFile("file", filepath.Base(path))
 
 	if err != nil {
 		panic(err)
@@ -85,6 +102,7 @@ func sendMail() {
 
 	encoder := base64.NewEncoder(base64.StdEncoding, imgpart)
 	_, err = io.Copy(encoder, file)
+	// _, err = io.Copy(imgpart, file)
 
 	if err != nil {
 		panic(err)
